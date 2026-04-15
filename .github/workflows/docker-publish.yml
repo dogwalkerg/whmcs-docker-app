@@ -7,7 +7,7 @@ on:
         description: '镜像版本标签'
         required: true
         type: string
-        default: 'v9.0.2'
+        default: 'v8.13.1'
   # 保持和你成功的案例一致的定时触发
   schedule:
     - cron: '0 3 * * *'
