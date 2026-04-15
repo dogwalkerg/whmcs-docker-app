@@ -1,47 +1,58 @@
-name: Build and Push Multi-Platform WHMCS
+name: Build and Push WHMCS to Aliyun
 
 on:
-  push:
-    branches: [ "main" ]
-  # 支持手动触发运行
   workflow_dispatch:
+    inputs:
+      version_tag:
+        description: '镜像版本标签'
+        required: true
+        type: string
+        default: 'v9.0.2'
+  # 保持和你成功的案例一致的定时触发
+  schedule:
+    - cron: '0 3 * * *'
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    env:
+      # 借鉴成功的 Registry 地址
+      ALIYUN_REGISTRY: crpi-x68pqc6t5zexwzms.cn-guangzhou.personal.cr.aliyuncs.com
+      # 借鉴成功的命名空间 xianyuauto，但仓库名改为 whmcs（请确保阿里云后台已创建此仓库）
+      ALIYUN_IMAGE: crpi-x68pqc6t5zexwzms.cn-guangzhou.personal.cr.aliyuncs.com/xianyuauto/whmcs-docker-app
     
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      # 设置 QEMU 以支持 ARM64 编译
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # 设置 Buildx
-      - name: Set up Docker Buildx
+      
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      # 登录阿里云 (使用你提供的具体 Registry)
-      - name: Login to Aliyun Registry
+      
+      - name: Setup QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Login to Aliyun Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.ALIYUN_REGISTRY }}
-          username: ${{ secrets.ALIVER_DOCKER_USER }}
-          password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
-
-      # 构建并推送
-      - name: Build and Push
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+      
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          # 同时构建 x86 和 ARM64 架构
           platforms: linux/amd64,linux/arm64
           push: true
-          # 请确保 "whmcs-repo" 是你在阿里云后台创建的镜像仓库名称
           tags: |
-            ${{ secrets.ALIYUN_REGISTRY }}/whmcs-repo/whmcs:latest
-            ${{ secrets.ALIYUN_REGISTRY }}/whmcs-repo/whmcs:${{ github.sha }}
-          # 使用 GitHub 缓存加速构建
+            ${{ env.ALIYUN_IMAGE }}:latest
+            ${{ env.ALIYUN_IMAGE }}:${{ github.event.inputs.version_tag || 'latest' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # 必须禁用 provenance 以避免阿里云部分环境不兼容多架构清单的问题
+          provenance: false
+
+      - name: Success Message
+        run: echo "✅ WHMCS 镜像已成功推送到阿里云！"
