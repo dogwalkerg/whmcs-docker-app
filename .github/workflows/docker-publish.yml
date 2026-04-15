@@ -8,9 +8,8 @@ on:
         required: true
         type: string
         default: 'v8.13.1'
-  # 保持和你成功的案例一致的定时触发
-  schedule:
-    - cron: '0 3 * * *'
+  push:
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -18,10 +17,10 @@ jobs:
     timeout-minutes: 30
     
     env:
-      # 借鉴成功的 Registry 地址
-      ALIYUN_REGISTRY: crpi-x68pqc6t5zexwzms.cn-guangzhou.personal.cr.aliyuncs.com
-      # 借鉴成功的命名空间 xianyuauto，但仓库名改为 whmcs（请确保阿里云后台已创建此仓库）
-      ALIYUN_IMAGE: crpi-x68pqc6t5zexwzms.cn-guangzhou.personal.cr.aliyuncs.com/xianyuauto/whmcs-docker-app
+      # 直接使用你截图中的 Registry Secret
+      ALIYUN_REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+      # 这里的路径请确保已经在阿里云后台创建了 xianyuauto 命名空间
+      ALIYUN_IMAGE: ${{ secrets.ALIYUN_REGISTRY }}/xianyuauto/whmcs-docker-app
     
     steps:
       - name: Checkout code
@@ -37,8 +36,9 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.ALIYUN_REGISTRY }}
-          username: ${{ secrets.ALIYUN_USERNAME }}
-          password: ${{ secrets.ALIYUN_PASSWORD }}
+          # 修改这里，完全匹配你的截图名称
+          username: ${{ secrets.ALIVER_DOCKER_USER }}
+          password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
       
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -51,8 +51,7 @@ jobs:
             ${{ env.ALIYUN_IMAGE }}:${{ github.event.inputs.version_tag || 'latest' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # 必须禁用 provenance 以避免阿里云部分环境不兼容多架构清单的问题
           provenance: false
 
       - name: Success Message
-        run: echo "✅ WHMCS 镜像已成功推送到阿里云！"
+        run: echo "✅ WHMCS 镜像已成功推送到 ${{ env.ALIYUN_IMAGE }}"
