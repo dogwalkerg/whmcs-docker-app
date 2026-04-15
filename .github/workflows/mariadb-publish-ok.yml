@@ -1,0 +1,63 @@
+name: Build and Push MariaDB to Aliyun-ok
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: '镜像版本标签'
+        required: true
+        type: string
+        default: '10.11'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'Dockerfile.mariadb' # 仅当此文件变动时触发自动构建
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    env:
+      # 沿用你 WHMCS 脚本中成功的 Secrets 引用
+      ALIYUN_REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+      # 路径确保在 xianyuauto 命名空间下，仓库名为 mariadb
+      ALIYUN_IMAGE: ${{ secrets.ALIYUN_REGISTRY }}/xianyuauto/mariadb
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Setup QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          # 沿用你成功的 Secret 变量名
+          username: ${{ secrets.ALIVER_DOCKER_USER }}
+          password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # 关键点：明确指定使用 MariaDB 的专用 Dockerfile
+          file: ./Dockerfile.mariadb
+          # 构建多架构镜像，解决 Armbian 启动失败问题
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.ALIYUN_IMAGE }}:10.11
+            ${{ env.ALIYUN_IMAGE }}:${{ github.event.inputs.version_tag || '10.11' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # 必须禁用，否则阿里云无法解析多架构索引
+          provenance: false
+
+      - name: Success Message
+        run: echo "✅ MariaDB 多架构镜像已成功推送到 ${{ env.ALIYUN_IMAGE }}"
